@@ -1,0 +1,165 @@
+# cordprotocol Python SDK
+
+> Post-quantum cryptographic identity for AI agents.
+> Python SDK — compatible with @cordprotocol/sdk (TypeScript).
+
+## Overview
+
+Cord Protocol lets AI agents carry cryptographically signed identity credentials.  Any tool, service, or peer agent can verify the credential before acting — answering "who is calling?" and "what are they allowed to do?".
+
+This is the Python SDK.  The TypeScript SDK is `@cordprotocol/sdk` on npm.  Both share the same `AgentCredential` schema, so credentials are mutually inspectable across languages.
+
+## When to use this SDK
+
+- You are building a LangChain, AutoGen, or CrewAI agent that calls tools or APIs.
+- You want those tools to verify the calling agent's identity before executing.
+- You want per-agent permission scopes enforced at the tool level.
+- You want a clear upgrade path to post-quantum signatures.
+
+## Installation
+
+```
+pip install cordprotocol
+```
+
+Requires Python 3.9+.  Dependencies: `cryptography`, `pydantic`.
+
+## Core API (Python)
+
+### generate_keypair
+
+```python
+from cordprotocol import generate_keypair
+
+kp = generate_keypair()
+# kp.private_key  — base64 string, keep secret
+# kp.public_key   — base64 string, shareable
+# kp.algorithm    — "Ed25519"
+```
+
+### issue_credential
+
+```python
+from cordprotocol import issue_credential, SCOPES
+
+cred = issue_credential(
+    agent_id="my-agent-001",
+    issued_to="acme-corp",
+    permissions=[SCOPES.READ, SCOPES.EXECUTE],
+    expires_in="24h",        # "30m" | "24h" | "7d" | "30d"
+    private_key=kp.private_key,
+    attestation_hash=None,   # optional SHA-256 of audit doc
+)
+```
+
+### verify_credential
+
+```python
+from cordprotocol import verify_credential
+
+result = verify_credential(cred)
+# result.valid      — bool
+# result.error      — str | None
+# result.credential — AgentCredential | None
+```
+
+### is_expired / has_permission
+
+```python
+from cordprotocol import is_expired, has_permission, SCOPES
+
+is_expired(cred)                          # bool
+has_permission(cred, SCOPES.WRITE)        # bool
+```
+
+### SCOPES
+
+```python
+SCOPES.READ        = "read:data"
+SCOPES.WRITE       = "write:data"
+SCOPES.EXECUTE     = "execute:actions"
+SCOPES.COMMUNICATE = "communicate:agents"
+SCOPES.SPEND       = "spend:budget"
+```
+
+## AgentCredential schema
+
+```python
+class AgentCredential(BaseModel):
+    id: str                        # UUID v4
+    agent_id: str
+    issued_to: str
+    issued_at: datetime            # UTC
+    expires_at: datetime           # UTC
+    permissions: List[str]
+    attestation_hash: Optional[str]
+    issuer_public_key: str         # base64
+    signature: str                 # base64
+```
+
+Serialisation: `.to_dict()`, `.from_dict()`, `.to_json()`, `.from_json()`
+
+## LangChain integration pattern
+
+```python
+class CordProtectedTool(BaseTool):
+    def __init__(self, credential):
+        self.credential = credential
+
+    def _run(self, query: str) -> str:
+        result = verify_credential(self.credential)
+        if not result.valid:
+            raise PermissionError(f"Identity failed: {result.error}")
+        if not has_permission(self.credential, SCOPES.READ):
+            raise PermissionError("Missing read:data")
+        # ... tool logic
+```
+
+## CrewAI trust registry pattern
+
+```python
+class CordTrustRegistry:
+    def __init__(self):
+        self._kp = generate_keypair()
+
+    def register_agent(self, agent_id, permissions):
+        return issue_credential(
+            agent_id=agent_id,
+            issued_to="crewai-runtime",
+            permissions=permissions,
+            expires_in="2h",
+            private_key=self._kp.private_key,
+        )
+
+    def verify_agent(self, agent_id, credential):
+        return verify_credential(credential).valid
+```
+
+## Post-quantum roadmap
+
+The SDK is structured for a one-line upgrade to CRYSTALS-Dilithium:
+
+```python
+# cordprotocol/crypto/signatures.py
+default_backend: CryptoBackend = DilithiumBackend()  # swap here
+```
+
+All swap points are tagged `[PQ SWAP POINT]` in the source.
+
+## CLI
+
+```bash
+cord keygen
+cord issue --agent-id X --issued-to Y --permissions read:data --private-key <key>
+cord verify credential.json
+```
+
+## Cross-SDK compatibility
+
+Both Python and TypeScript SDKs use the same credential schema and the same deterministic signing payload (alphabetically sorted JSON keys, sorted permissions list).  Credentials issued by one SDK can be verified by the other.
+
+## Links
+
+- https://cordprotocol.dev
+- https://www.npmjs.com/package/@cordprotocol/sdk (TypeScript)
+- https://github.com/cordprotocol/cordprotocol-python
