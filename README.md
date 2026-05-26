@@ -266,6 +266,107 @@ No changes are needed in application code.
 
 ---
 
+## Hosted API integration
+
+The `CordProtocol` client wraps the core SDK with optional registry auto-posting and revocation checking against the live API at `https://api.cordprotocol.dev`.
+
+### Basic usage (unchanged)
+
+```python
+from cordprotocol import generate_keypair, issue_credential, verify_credential, SCOPES
+
+kp = generate_keypair()
+
+cred = issue_credential(
+    agent_id="my-agent",
+    issued_to="paul@example.com",
+    permissions=["read:data"],
+    expires_in="24h",
+    private_key=kp.private_key,
+)
+
+result = verify_credential(cred)
+assert result.valid
+```
+
+### With registry and revocation (new in v0.2.0)
+
+```python
+from cordprotocol import CordProtocol, CordProtocolConfig, generate_keypair, SCOPES
+
+kp = generate_keypair()
+
+cord = CordProtocol(CordProtocolConfig(
+    registry=True,
+    api_key="your-api-key",
+))
+
+# Issues the credential AND automatically registers the public key
+# in the Cord Protocol registry.  Registry failure is silent.
+cred = cord.issue_credential(
+    agent_id="my-agent",
+    issued_to="paul@example.com",
+    permissions=["read:data", "write:orders"],
+    expires_in="24h",
+    private_key=kp.private_key,
+)
+
+# Verifies signature + expiry AND checks revocation status via the API.
+result = cord.verify_credential(cred)
+if not result.valid:
+    print(result.error)  # e.g. "Credential has been revoked."
+
+# Revoke a credential (requires api_key)
+cord.revoke_credential(cred.id, cred.agent_id, reason="decommissioned")
+
+# Look up a registered agent
+registration = cord.lookup_agent("my-agent")
+if registration:
+    print(registration.active, registration.credential_count)
+```
+
+### Low-level registry functions
+
+All registry functions are also available directly, as both async and sync variants:
+
+```python
+from cordprotocol import (
+    register_agent, register_agent_sync,
+    lookup_agent, lookup_agent_sync,
+    check_revocation_status, check_revocation_status_sync,
+    revoke_credential, revoke_credential_sync,
+)
+
+# Async (use inside async functions)
+registration = await register_agent("my-agent", kp.public_key, "paul@example.com")
+status = await check_revocation_status(cred.id)
+
+# Sync (use in regular code)
+registration = register_agent_sync("my-agent", kp.public_key, "paul@example.com")
+status = check_revocation_status_sync(cred.id)
+# {"revoked": False, "revoked_at": None, "reason": None}
+```
+
+### Error handling
+
+```python
+from cordprotocol import RegistryError, RevocationError
+
+try:
+    await register_agent("my-agent", kp.public_key, "alice")
+except RegistryError as e:
+    print(f"Registry error: {e}")
+
+try:
+    cord.revoke_credential(cred.id, cred.agent_id)
+except RevocationError as e:
+    print(f"Revocation failed: {e}")
+except ValueError as e:
+    print(f"Config error: {e}")  # no api_key set
+```
+
+---
+
 ## Links
 
 - Website: [cordprotocol.dev](https://cordprotocol.dev)  

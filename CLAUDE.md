@@ -19,6 +19,9 @@ cordprotocol/           ← main package
   issuer.py             ← generate_keypair(), issue_credential()
   verifier.py           ← verify_credential(), is_expired(), has_permission()
   permissions.py        ← SCOPES constants, validate_scopes()
+  registry.py           ← register_agent(), lookup_agent(), check_revocation_status(),
+                          revoke_credential() + sync wrappers; RegistryError, RevocationError
+  client.py             ← CordProtocol class + CordProtocolConfig
   cli.py                ← `cord` CLI entry point
   crypto/
     __init__.py
@@ -29,6 +32,8 @@ tests/
   test_credential.py    ← serialisation + signing-payload tests
   test_issuer.py        ← keypair gen + issuance tests
   test_verifier.py      ← verify / is_expired / has_permission tests
+  test_registry.py      ← registry functions + sync wrappers (mocked httpx)
+  test_client.py        ← CordProtocol client (mocked registry)
 
 examples/
   basic_issue.py        ← generate keys, issue, print
@@ -68,7 +73,7 @@ This matches the TypeScript SDK so cross-language credential inspection works co
 
 ```bash
 pip install -e ".[dev]"
-pytest                        # all tests
+pytest                        # all tests (137 total)
 pytest tests/test_issuer.py   # single file
 pytest -v                     # verbose output
 ```
@@ -83,6 +88,22 @@ python examples/basic_verify.py
 python examples/langchain_example.py   # no LangChain required
 python examples/crewai_example.py      # no CrewAI required
 ```
+
+---
+
+## Key design decisions (v0.2.0 additions)
+
+### CordProtocol client
+
+`cordprotocol/client.py` provides `CordProtocol` — a high-level wrapper that wires the core issuer and verifier to the hosted API.  `CordProtocolConfig.registry=True` makes `issue_credential` auto-post the public key.  `CordProtocolConfig.api_key` makes `verify_credential` also check revocation.  Both features fail silently so credential operations are never blocked by network issues.
+
+### Registry module
+
+`cordprotocol/registry.py` contains four async functions (`register_agent`, `lookup_agent`, `check_revocation_status`, `revoke_credential`) with sync wrappers (same name + `_sync` suffix) using `asyncio.run()`.  Uses `httpx` for async HTTP.  `RegistryError` covers non-revocation API failures; `RevocationError` covers revocation failures.
+
+### Dependencies
+
+`httpx>=0.24.0` was added as a runtime dependency in v0.2.0 to support the async registry HTTP calls.
 
 ---
 

@@ -135,6 +135,70 @@ class CordTrustRegistry:
         return verify_credential(credential).valid
 ```
 
+## Hosted API integration (v0.2.0)
+
+### CordProtocol client
+
+```python
+from cordprotocol import CordProtocol, CordProtocolConfig
+
+cord = CordProtocol(CordProtocolConfig(
+    registry=True,       # auto-post public key on issuance
+    api_key="your-key",  # enables revocation checking
+))
+
+cred = cord.issue_credential(
+    agent_id="my-agent",
+    issued_to="alice",
+    permissions=["read:data"],
+    expires_in="24h",
+    private_key=kp.private_key,
+)
+
+result = cord.verify_credential(cred)  # checks revocation if api_key set
+cord.revoke_credential(cred.id, cred.agent_id, reason="decommissioned")
+reg = cord.lookup_agent("my-agent")    # AgentRegistration | None
+```
+
+### Registry functions (async + sync)
+
+```python
+from cordprotocol import (
+    register_agent, register_agent_sync,
+    lookup_agent, lookup_agent_sync,
+    check_revocation_status, check_revocation_status_sync,
+    revoke_credential, revoke_credential_sync,
+    RegistryError, RevocationError,
+)
+
+# Async
+reg = await register_agent(agent_id, public_key, issued_to, domain=None)
+reg = await lookup_agent(agent_id)           # None if not found
+status = await check_revocation_status(cred_id)
+# {"revoked": bool, "revoked_at": str|None, "reason": str|None}
+await revoke_credential(cred_id, agent_id, api_key, reason=None)
+
+# Sync wrappers (same signatures, no await)
+reg = register_agent_sync(agent_id, public_key, issued_to)
+status = check_revocation_status_sync(cred_id)
+```
+
+### AgentRegistration schema
+
+```python
+@dataclass
+class AgentRegistration:
+    id: str
+    agent_id: str
+    public_key: str
+    issued_to: str
+    registered_at: str
+    credential_count: int
+    active: bool
+    domain: Optional[str]
+    last_seen: Optional[str]
+```
+
 ## Post-quantum roadmap
 
 The SDK is structured for a one-line upgrade to CRYSTALS-Dilithium:
