@@ -27,6 +27,16 @@ cordprotocol/           ← main package
     __init__.py
     keys.py             ← KeyPair dataclass, generate_keypair()
     signatures.py       ← CryptoBackend ABC + Ed25519Backend [PQ SWAP POINT]
+  did/
+    __init__.py         ← exports everything in the DID sub-package
+    types.py            ← DIDDocument, VerifiableCredential, VCProof, VCCredentialSubject,
+                          VerificationMethod, ServiceEndpoint, DIDResolutionResult (dataclasses)
+    document.py         ← public_key_to_multibase(), multibase_to_public_key(),
+                          create_did_document(); pure-Python base58btc helpers
+    resolver.py         ← agent_id_to_did(), did_to_agent_id(), resolve_did(),
+                          resolve_did_sync(); supports did:key (offline) + did:web (httpx)
+    vc.py               ← issue_verifiable_credential(), verify_verifiable_credential(),
+                          agent_credential_to_vc(), vc_to_agent_credential_dict()
 
 tests/
   test_credential.py    ← serialisation + signing-payload tests
@@ -34,6 +44,10 @@ tests/
   test_verifier.py      ← verify / is_expired / has_permission tests
   test_registry.py      ← registry functions + sync wrappers (mocked httpx)
   test_client.py        ← CordProtocol client (mocked registry)
+  did/
+    test_document.py    ← base58btc, key format conversion, DID document creation
+    test_resolver.py    ← agent_id_to_did, did_to_agent_id, resolve_did (mocked httpx)
+    test_vc.py          ← VC issuance, verification, AgentCredential conversion
 
 examples/
   basic_issue.py        ← generate keys, issue, print
@@ -73,8 +87,9 @@ This matches the TypeScript SDK so cross-language credential inspection works co
 
 ```bash
 pip install -e ".[dev]"
-pytest                        # all tests (137 total)
+pytest                        # all tests (242 total)
 pytest tests/test_issuer.py   # single file
+pytest tests/did/             # DID/VC tests only
 pytest -v                     # verbose output
 ```
 
@@ -88,6 +103,30 @@ python examples/basic_verify.py
 python examples/langchain_example.py   # no LangChain required
 python examples/crewai_example.py      # no CrewAI required
 ```
+
+---
+
+## Key design decisions (v0.3.0 additions — DID & VC)
+
+### DID module (`cordprotocol/did/`)
+
+W3C DID and Verifiable Credential support. No new runtime dependencies — base58btc is implemented in pure Python (`document.py`) using the standard Bitcoin alphabet.
+
+### `did:key` for offline verification
+
+`issue_verifiable_credential()` always sets `proof.verification_method` to a `did:key:z<multibase>` DID. This embeds the issuer's Ed25519 public key directly in the proof, so `verify_verifiable_credential()` never needs a network call. The `issuer` field in the VC still holds whatever DID the caller passed (e.g. `did:web:cordprotocol.dev`).
+
+### Multicodec key encoding
+
+`public_key_to_multibase()` prepends the Ed25519 multicodec prefix (`0xed 0x01`) to the raw public key bytes before base58btc encoding, then adds the `z` multibase prefix. `multibase_to_public_key()` reverses this. This is the standard encoding for `Ed25519VerificationKey2020` and `did:key`.
+
+### VC signing payload
+
+`_vc_signing_payload()` in `vc.py` serialises all VC fields **except** `proof` to deterministic JSON (`sort_keys=True`, permissions sorted). The proof is excluded so the same bytes are produced during both issuance and verification, regardless of what is currently in `proof.proof_value`.
+
+### `agent_credential_to_vc` / `vc_to_agent_credential_dict`
+
+These are format-conversion helpers. `agent_credential_to_vc()` re-encodes the existing `AgentCredential.signature` (base64 → base58btc) into `proof.proof_value`. Because the signing payload format differs from the VC payload, verifying the result with `verify_verifiable_credential()` will fail by design — use `verify_credential()` instead.
 
 ---
 

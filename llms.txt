@@ -135,6 +135,122 @@ class CordTrustRegistry:
         return verify_credential(credential).valid
 ```
 
+## DID & Verifiable Credentials (v0.3.0)
+
+### issue_verifiable_credential
+
+```python
+from cordprotocol import issue_verifiable_credential, generate_keypair
+
+kp = generate_keypair()
+
+vc = issue_verifiable_credential(
+    agent_id="trading-agent",
+    issued_to="paul@example.com",
+    permissions=["read:market", "execute:trades"],
+    expires_in="24h",
+    private_key=kp.private_key,
+    issuer_did="did:web:cordprotocol.dev",
+    # domain="cordprotocol.dev"   # default
+    # attestation_hash=None       # optional
+)
+# vc.id                   — "urn:uuid:<uuid>"
+# vc.issuer               — "did:web:cordprotocol.dev"
+# vc.proof.type           — "Ed25519Signature2020"
+# vc.proof.proof_value    — "z<base58btc signature>"
+# vc.proof.verification_method — "did:key:z<pubkey>#key-1"
+```
+
+### verify_verifiable_credential
+
+```python
+from cordprotocol import verify_verifiable_credential
+
+result = verify_verifiable_credential(vc)
+# result["valid"]       — bool
+# result["reason"]      — str | None
+# result["agent_id"]    — str | None (present when valid)
+# result["permissions"] — list | None (present when valid)
+```
+
+Verification is fully offline — public key extracted from `did:key` in `proof.verification_method`.
+
+### DID utilities
+
+```python
+from cordprotocol import agent_id_to_did, did_to_agent_id
+
+agent_id_to_did("my-agent")
+# → "did:web:cordprotocol.dev:agents:my-agent"
+
+did_to_agent_id("did:web:cordprotocol.dev:agents:my-agent")
+# → "my-agent"  (None if not a cordprotocol DID)
+```
+
+### create_did_document
+
+```python
+from cordprotocol import create_did_document, generate_keypair
+
+doc = create_did_document(
+    did="did:web:cordprotocol.dev:agents:my-agent",
+    public_key=kp.public_key,
+    service_endpoint="https://my-agent.example.com",  # optional
+)
+# doc.verification_method[0].type              — "Ed25519VerificationKey2020"
+# doc.verification_method[0].public_key_multibase — "z<base58btc>"
+```
+
+### resolve_did
+
+```python
+from cordprotocol import resolve_did, resolve_did_sync
+
+# did:key (offline)
+result = resolve_did_sync("did:key:z6Mk...")
+# did:web (HTTP fetch)
+result = await resolve_did("did:web:cordprotocol.dev:agents:my-agent")
+
+# result.did_document            — DIDDocument | None
+# result.did_resolution_metadata — {"contentType": ...} | {"error": ...}
+```
+
+### Key encoding
+
+```python
+from cordprotocol import public_key_to_multibase, multibase_to_public_key
+
+multibase = public_key_to_multibase(kp.public_key)   # "z<base58btc>"
+base64_key = multibase_to_public_key(multibase)       # base64 string
+```
+
+### AgentCredential ↔ VC conversion
+
+```python
+from cordprotocol import agent_credential_to_vc, vc_to_agent_credential_dict
+
+vc = agent_credential_to_vc(cred, issuer_did="did:web:cordprotocol.dev")
+d = vc_to_agent_credential_dict(vc)
+# d has: id, agent_id, issued_to, permissions, issuer_public_key, signature, ...
+```
+
+### VerifiableCredential schema
+
+```python
+@dataclass
+class VerifiableCredential:
+    context: List[str]          # ["https://www.w3.org/2018/credentials/v1", ...]
+    id: str                     # "urn:uuid:<uuid>"
+    type: List[str]             # ["VerifiableCredential", "AgentIdentityCredential"]
+    issuer: str                 # DID string
+    issuance_date: str          # ISO-8601
+    expiration_date: str | None # ISO-8601
+    credential_subject: VCCredentialSubject
+    proof: VCProof
+```
+
+---
+
 ## Hosted API integration (v0.2.0)
 
 ### CordProtocol client

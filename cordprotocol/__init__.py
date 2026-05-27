@@ -44,6 +44,32 @@ With hosted registry and revocation::
 from cordprotocol.client import CordProtocol, CordProtocolConfig
 from cordprotocol.credential import AgentCredential, VerificationResult
 from cordprotocol.crypto.keys import KeyPair
+from cordprotocol.did.document import (
+    create_did_document,
+    multibase_to_public_key,
+    public_key_to_multibase,
+)
+from cordprotocol.did.resolver import (
+    agent_id_to_did,
+    did_to_agent_id,
+    resolve_did,
+    resolve_did_sync,
+)
+from cordprotocol.did.types import (
+    DIDDocument,
+    DIDResolutionResult,
+    ServiceEndpoint,
+    VCCredentialSubject,
+    VCProof,
+    VerifiableCredential,
+    VerificationMethod,
+)
+from cordprotocol.did.vc import (
+    agent_credential_to_vc,
+    issue_verifiable_credential,
+    vc_to_agent_credential_dict,
+    verify_verifiable_credential,
+)
 from cordprotocol.issuer import generate_keypair, issue_credential
 from cordprotocol.permissions import SCOPES, validate_scopes
 from cordprotocol.registry import (
@@ -61,7 +87,7 @@ from cordprotocol.registry import (
 )
 from cordprotocol.verifier import has_permission, is_expired, verify_credential
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     # Models
@@ -93,4 +119,26 @@ __all__ = [
     "check_revocation_status_sync",
     "revoke_credential",
     "revoke_credential_sync",
+    # DID types
+    "DIDDocument",
+    "DIDResolutionResult",
+    "ServiceEndpoint",
+    "VCCredentialSubject",
+    "VCProof",
+    "VerifiableCredential",
+    "VerificationMethod",
+    # DID document
+    "create_did_document",
+    "public_key_to_multibase",
+    "multibase_to_public_key",
+    # DID resolver
+    "agent_id_to_did",
+    "did_to_agent_id",
+    "resolve_did",
+    "resolve_did_sync",
+    # Verifiable Credentials
+    "issue_verifiable_credential",
+    "verify_verifiable_credential",
+    "agent_credential_to_vc",
+    "vc_to_agent_credential_dict",
 ]

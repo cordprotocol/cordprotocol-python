@@ -253,6 +253,119 @@ cord verify credential.json
 
 ---
 
+## DID & Verifiable Credentials (W3C Standard)
+
+`cordprotocol` v0.3.0 adds full W3C DID and Verifiable Credential support, compatible with the TypeScript SDK v0.4.0.
+
+### Issue a Verifiable Credential
+
+```python
+from cordprotocol import generate_keypair, issue_verifiable_credential, agent_id_to_did
+
+kp = generate_keypair()
+
+vc = issue_verifiable_credential(
+    agent_id="trading-agent",
+    issued_to="paul@example.com",
+    permissions=["read:market", "execute:trades"],
+    expires_in="24h",
+    private_key=kp.private_key,
+    issuer_did="did:web:cordprotocol.dev",
+)
+
+print(vc.id)        # "urn:uuid:<uuid>"
+print(vc.issuer)    # "did:web:cordprotocol.dev"
+print(vc.proof.type)  # "Ed25519Signature2020"
+```
+
+### Verify a Verifiable Credential
+
+```python
+from cordprotocol import verify_verifiable_credential
+
+result = verify_verifiable_credential(vc)
+# result["valid"]       → True
+# result["agent_id"]    → "trading-agent"
+# result["permissions"] → ["read:market", "execute:trades"]
+# result["reason"]      → None
+```
+
+Verification is fully offline — the issuer's public key is recovered from the `did:key` embedded in `proof.verification_method`.
+
+### DID utilities
+
+```python
+from cordprotocol import agent_id_to_did, did_to_agent_id
+
+did = agent_id_to_did("trading-agent")
+# → "did:web:cordprotocol.dev:agents:trading-agent"
+
+agent_id = did_to_agent_id(did)
+# → "trading-agent"
+```
+
+### Create a DID Document
+
+```python
+from cordprotocol import generate_keypair, create_did_document
+
+kp = generate_keypair()
+doc = create_did_document(
+    did="did:web:cordprotocol.dev:agents:my-agent",
+    public_key=kp.public_key,
+    service_endpoint="https://my-agent.example.com",
+)
+
+print(doc.verification_method[0].type)  # "Ed25519VerificationKey2020"
+print(doc.verification_method[0].public_key_multibase)  # "z<base58btc>"
+```
+
+### Resolve a DID
+
+```python
+from cordprotocol import resolve_did, resolve_did_sync
+
+# did:key — offline, no network
+result = resolve_did_sync("did:key:z6Mk...")
+doc = result.did_document
+
+# did:web — fetches https://<domain>/.well-known/did.json or path equivalent
+result = await resolve_did("did:web:cordprotocol.dev:agents:trading-agent")
+```
+
+### Convert between AgentCredential and VC
+
+```python
+from cordprotocol import (
+    issue_credential, agent_credential_to_vc, vc_to_agent_credential_dict,
+    generate_keypair, SCOPES,
+)
+
+kp = generate_keypair()
+cred = issue_credential(
+    agent_id="my-agent", issued_to="alice",
+    permissions=[SCOPES.READ], expires_in="24h",
+    private_key=kp.private_key,
+)
+
+# Convert to W3C VC format
+vc = agent_credential_to_vc(cred, issuer_did="did:web:cordprotocol.dev")
+
+# Convert back to AgentCredential-compatible dict
+d = vc_to_agent_credential_dict(vc)
+```
+
+### Key encoding utilities
+
+```python
+from cordprotocol import public_key_to_multibase, multibase_to_public_key
+
+multibase = public_key_to_multibase(kp.public_key)   # "z<base58btc>"
+base64_key = multibase_to_public_key(multibase)       # original base64
+```
+
+---
+
 ## Post-quantum roadmap
 
 The SDK is designed for a seamless upgrade to CRYSTALS-Dilithium (NIST PQC standard).  Every location that needs to change is marked with `[PQ SWAP POINT]` in the source.  The swap requires changing one line:
