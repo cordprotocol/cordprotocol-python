@@ -27,13 +27,18 @@ Requires Python 3.9+ and depends only on [`cryptography`](https://pypi.org/proje
 ## Quick start
 
 ```python
-from cordprotocol import generate_keypair, issue_credential, verify_credential, SCOPES
+import os
+from cordprotocol import CordProtocol, CordProtocolConfig, generate_keypair, SCOPES
 
-# Generate an issuer keypair (generate once, store securely)
-kp = generate_keypair()
+kp = generate_keypair()  # generate once, store securely
 
-# Issue a signed credential for an agent
-cred = issue_credential(
+cord = CordProtocol(CordProtocolConfig(
+    registry=True,
+    api_key=os.environ.get("CORD_API_KEY"),
+))
+
+# Issue a signed credential — automatically registered in the public trust network
+cred = cord.issue_credential(
     agent_id="my-agent-001",
     issued_to="acme-corp",
     permissions=[SCOPES.READ, SCOPES.EXECUTE],
@@ -41,8 +46,8 @@ cred = issue_credential(
     private_key=kp.private_key,
 )
 
-# Verify it
-result = verify_credential(cred)
+# Verify signature, expiry, and revocation status
+result = cord.verify_credential(cred)
 assert result.valid
 print(result.credential.agent_id)  # "my-agent-001"
 ```
@@ -411,7 +416,7 @@ kp = generate_keypair()
 
 cord = CordProtocol(CordProtocolConfig(
     registry=True,
-    api_key="your-api-key",
+    api_key=os.environ.get("CORD_API_KEY"),
 ))
 
 # Issues the credential AND automatically registers the public key

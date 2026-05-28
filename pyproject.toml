@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cordprotocol"
-version = "0.3.0"
+version = "0.3.1"
 description = "Post-quantum cryptographic identity for AI agents"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -21,13 +21,18 @@ keywords = [
     "langchain",
     "crewai",
     "autogen",
-    "did", 
-    "verifiable-credentials", 
-    "w3c", 
-    "mcp", 
-    "agentic", 
-    "security", 
-    "jwt"
+    "did",
+    "verifiable-credentials",
+    "w3c",
+    "mcp",
+    "agentic",
+    "security",
+    "jwt",
+    "agentic-security",
+    "agent-authentication",
+    "mcp-security",
+    "llm-agent-identity",
+    "autonomous-agent-security",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",

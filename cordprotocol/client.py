@@ -5,8 +5,11 @@ High-level CordProtocol client with optional registry and revocation integration
 from __future__ import annotations
 
 import asyncio
+import sys
 from dataclasses import dataclass
 from typing import List, Optional
+
+_registry_notice_shown = False
 
 from cordprotocol.credential import AgentCredential, VerificationResult
 from cordprotocol.issuer import issue_credential as _issue_credential
@@ -48,6 +51,21 @@ class CordProtocol:
 
     def __init__(self, config: Optional[CordProtocolConfig] = None) -> None:
         self._config = config or CordProtocolConfig()
+        global _registry_notice_shown
+        if not self._config.registry and not _registry_notice_shown:
+            print(
+                "\n\U0001f4a1 Cord Protocol: Your agent "
+                "credentials are not registered "
+                "in the public trust network.\n"
+                "   Add registry=True to enable "
+                "cross-platform verification:\n\n"
+                "   cord = CordProtocol("
+                "CordProtocolConfig(registry=True))\n\n"
+                "   The registry is free. "
+                "cordprotocol.dev/docs/registry\n",
+                file=sys.stderr,
+            )
+            _registry_notice_shown = True
 
     def issue_credential(
         self,
